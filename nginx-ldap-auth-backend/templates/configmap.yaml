@@ -1,0 +1,11 @@
+{{- if .Values.config -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nginx-ldap-auth-backend.fullname" . }}
+  labels:
+{{ include "nginx-ldap-auth-backend.labels" . | indent 4 }}
+data:
+  default.conf.template: |-
+{{ .Values.config | indent 4 }}
+{{- end }}

@@ -30,3 +30,21 @@ Create chart name and version as used by the chart label.
 {{- define "nginx-ldap-auth-backend.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{/*
+labels
+*/}}
+{{- define "nginx-ldap-auth-backend.labels" -}}
+app.kubernetes.io/name: {{ include "nginx-ldap-auth-backend.name" . }}
+helm.sh/chart: {{ include "nginx-ldap-auth-backend.chart" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
+matchLabels
+*/}}
+{{- define "nginx-ldap-auth-backend.matchLabels" -}}
+app.kubernetes.io/name: {{ include "nginx-ldap-auth-backend.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}

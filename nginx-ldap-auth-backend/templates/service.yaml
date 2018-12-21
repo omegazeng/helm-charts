@@ -3,17 +3,13 @@ kind: Service
 metadata:
   name: {{ include "nginx-ldap-auth-backend.fullname" . }}
   labels:
-    app.kubernetes.io/name: {{ include "nginx-ldap-auth-backend.name" . }}
-    helm.sh/chart: {{ include "nginx-ldap-auth-backend.chart" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{ include "nginx-ldap-auth-backend.labels" . | indent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: 80
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/name: {{ include "nginx-ldap-auth-backend.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "nginx-ldap-auth-backend.matchLabels" . | indent 4 }}

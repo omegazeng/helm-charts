@@ -4,10 +4,23 @@
 
 replicaCount: 1
 
-image:
-  repository: nginx
-  tag: stable
-  pullPolicy: IfNotPresent
+imagePullSecrets: ""
+
+daemon:
+  image:
+    repository: omegazeng/ldap-auth-daemon
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  resources: {}
+
+proxy:
+  image:
+    repository: nginx
+    tag: alpine
+    pullPolicy: IfNotPresent
+
+  resources: {}
 
 nameOverride: ""
 fullnameOverride: ""
@@ -29,20 +42,60 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #  cpu: 100m
-  #  memory: 128Mi
-  # requests:
-  #  cpu: 100m
-  #  memory: 128Mi
-
 nodeSelector: {}
 
 tolerations: []
 
 affinity: {}
+
+# Spcifies an existing secret for Bind DN user password.
+# eg: `kubectl get secrets -n ldap |grep openldap` get openldap Secret name.
+# existingSecret: "pioneering-mandrill-openldap"
+existingSecret: ""
+# Ignore when spcified an exsiting secret, and will not create Secret.
+ldap_bind_pass: "Your_Password"
+  
+config: |-
+  proxy_cache_path cache/ levels=1:2 keys_zone=auth_cache:10m max_size=128m inactive=30m use_temp_path=off;
+
+  server {
+      listen       80;
+      server_name  localhost;
+      location / {
+          root   /usr/share/nginx/html;
+          index  index.html index.htm;
+      }
+      error_page   500 502 503 504  /50x.html;
+      location = /50x.html {
+          root   /usr/share/nginx/html;
+      }
+      location /auth {
+          proxy_pass http://127.0.0.1:8888;
+          proxy_cache auth_cache; # Must match the name in the proxy_cache_path directive above
+          proxy_cache_key "${DOLLAR}http_authorization${DOLLAR}cookie_nginxauth"; # note that cookie is added to cache key
+          proxy_cache_valid 200 10m;
+
+          # URL and port for connecting to the LDAP server
+          proxy_set_header X-Ldap-URL "ldap://ldap.example.com";
+
+          # Negotiate a TLS-enabled (STARTTLS) connection before sending credentials
+          proxy_set_header X-Ldap-Starttls "false";
+
+          # Base DN
+          proxy_set_header X-Ldap-BaseDN "ou=users,dc=example,dc=com";
+
+          # Bind DN
+          proxy_set_header X-Ldap-BindDN "cn=admin,dc=example,dc=com";
+
+          # Bind password
+          proxy_set_header X-Ldap-BindPass "${LDAP_BIND_PASS}";
+
+          # uid
+          proxy_set_header X-Ldap-Template "(cn=%(username)s)";
+
+          proxy_set_header X-Ldap-Realm "Restricted";
+          proxy_set_header X-CookieName "nginxauth";
+          proxy_set_header Cookie nginxauth=${DOLLAR}cookie_nginxauth;
+      } 
+  }
+  

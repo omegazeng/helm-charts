@@ -3,40 +3,95 @@ kind: Deployment
 metadata:
   name: {{ include "nginx-ldap-auth-backend.fullname" . }}
   labels:
-    app.kubernetes.io/name: {{ include "nginx-ldap-auth-backend.name" . }}
-    helm.sh/chart: {{ include "nginx-ldap-auth-backend.chart" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{ include "nginx-ldap-auth-backend.labels" . | indent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "nginx-ldap-auth-backend.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "nginx-ldap-auth-backend.matchLabels" . | indent 6 }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "nginx-ldap-auth-backend.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "nginx-ldap-auth-backend.labels" . | indent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecrets }}
+      {{- end }}
+      volumes:
+        - name: cache-volume
+          emptyDir: {}
+        - name: config-volume
+          configMap:
+            name: {{ include "nginx-ldap-auth-backend.fullname" . }}      
+      initContainers:
+        - name: init-config
+          image: nginx:alpine
+          env:
+            - name: LDAP_BIND_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | default (include "nginx-ldap-auth-backend.fullname" .) }}
+                  key: LDAP_ADMIN_PASSWORD
+            - name: DOLLAR
+              value: '$'
+          volumeMounts:
+            - mountPath: /cache
+              name: cache-volume
+            - mountPath: /config
+              name: config-volume
+              readOnly: true
+          command: [ "/bin/sh", "-c", "envsubst < /config/default.conf.template > /cache/default.conf" ]
       containers:
-        - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: ldap-auth-daemon
+          image: "{{ .Values.daemon.image.repository }}:{{ .Values.daemon.image.tag }}"
+          imagePullPolicy: {{ .Values.daemon.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8888
+              protocol: TCP
+              readinessProbe:
+                tcpSocket:
+                  port: 8888
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+              livenessProbe:
+                tcpSocket:
+                  port: 8888
+                initialDelaySeconds: 15
+                periodSeconds: 20
+                timeoutSeconds: 5        
+          resources:
+{{ toYaml .Values.daemon.resources | indent 12 }}
+        - name: nginx-ldap-auth
+          image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag }}"
+          imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+          volumeMounts:
+            - mountPath: /etc/nginx/conf.d
+              name: cache-volume
           ports:
             - name: http
               containerPort: 80
               protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
+              livenessProbe:
+                httpGet:
+                  path: /
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+              readinessProbe:
+                httpGet:
+                  path: /
+                  port: http
+                initialDelaySeconds: 15
+                periodSeconds: 20
+                timeoutSeconds: 5        
           resources:
-{{ toYaml .Values.resources | indent 12 }}
+{{ toYaml .Values.proxy.resources | indent 12 }}
     {{- with .Values.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
