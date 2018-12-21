@@ -1,0 +1,13 @@
+apiVersion: v1
+entries:
+  nginx-ldap-auth-backend:
+  - apiVersion: v1
+    appVersion: "1.0"
+    created: 2018-12-21T21:12:25.745305611+08:00
+    description: A Helm chart for Kubernetes
+    digest: b299966b5e3a1bdf2c4303a8861bff1ea40ccda6543c3ddccd72b693e96d2549
+    name: nginx-ldap-auth-backend
+    urls:
+    - nginx-ldap-auth-backend/nginx-ldap-auth-backend-0.1.0.tgz
+    version: 0.1.0
+generated: 2018-12-21T21:12:25.742746798+08:00
